@@ -1,5 +1,8 @@
 # Tidemark
 
+[![CI](https://github.com/pank1/tidemark/actions/workflows/ci.yml/badge.svg)](https://github.com/pank1/tidemark/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 **See how much Claude quota you have left, and move between your Claude accounts from the status bar.**
 
 Tidemark puts your 5-hour window, your week and a countdown to the next reset in the VS Code
@@ -12,6 +15,17 @@ without a terminal.
 
 It is not made by Anthropic. It reads the sign-in Claude Code already uses and asks Anthropic
 for the same figures the `/usage` panel shows.
+
+## Install
+
+Search the VS Code Marketplace for **Tidemark**, or take the VSIX from the
+[latest release](https://github.com/pank1/tidemark/releases/latest):
+
+```bash
+code --install-extension tidemark-0.1.0.vsix
+```
+
+Nothing to configure afterwards — if Claude Code is signed in, the status bar fills in.
 
 ---
 
