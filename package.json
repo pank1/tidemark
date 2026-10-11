@@ -1,0 +1,307 @@
+{
+  "name": "tidemark",
+  "displayName": "Tidemark — Claude Code usage, limits & account switching",
+  "description": "See how much Claude quota you have left and when it resets. With more than one Claude account, switch between them from the status bar.",
+  "version": "0.1.0",
+  "publisher": "tidemark",
+  "license": "MIT",
+  "private": false,
+  "engines": {
+    "vscode": "^1.94.0",
+    "node": ">=20"
+  },
+  "categories": ["AI", "Visualization", "Other"],
+  "keywords": [
+    "claude",
+    "claude code",
+    "usage",
+    "quota",
+    "rate limit",
+    "session limit",
+    "weekly limit",
+    "max plan",
+    "accounts",
+    "account switcher"
+  ],
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1d1f2b",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pank1/tidemark.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pank1/tidemark/issues"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "tidemark.switch", "title": "Switch Account…", "category": "Tidemark", "icon": "$(arrow-swap)" },
+      { "command": "tidemark.refresh", "title": "Refresh Usage", "category": "Tidemark", "icon": "$(refresh)" },
+      { "command": "tidemark.captureCurrent", "title": "Save Current Login as an Account", "category": "Tidemark", "icon": "$(save)" },
+      { "command": "tidemark.addAccount", "title": "Add Another Account…", "category": "Tidemark", "icon": "$(add)" },
+      { "command": "tidemark.removeAccount", "title": "Remove Account…", "category": "Tidemark", "icon": "$(trash)" },
+      { "command": "tidemark.renameAccount", "title": "Rename Account…", "category": "Tidemark", "icon": "$(edit)" },
+      { "command": "tidemark.doctor", "title": "Doctor", "category": "Tidemark", "icon": "$(stethoscope)" },
+      { "command": "tidemark.copySummary", "title": "Copy Usage Summary", "category": "Tidemark" },
+      { "command": "tidemark.syncSetup", "title": "Set Up Sync Across Machines…", "category": "Tidemark", "icon": "$(cloud)" },
+      { "command": "tidemark.syncPull", "title": "Pull Accounts from Sync", "category": "Tidemark", "icon": "$(cloud-download)" },
+      { "command": "tidemark.syncPush", "title": "Push Accounts to Sync", "category": "Tidemark", "icon": "$(cloud-upload)" },
+      { "command": "tidemark.unlock", "title": "Unlock (enter passphrase)", "category": "Tidemark", "icon": "$(unlock)" },
+      { "command": "tidemark.lock", "title": "Lock", "category": "Tidemark", "icon": "$(lock)" },
+      { "command": "tidemark.toggleFailover", "title": "Toggle Auto-Failover", "category": "Tidemark" },
+      { "command": "tidemark.showLogs", "title": "Show Logs", "category": "Tidemark", "icon": "$(output)" },
+      { "command": "tidemark.openWalkthrough", "title": "Open Walkthrough", "category": "Tidemark" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tidemark",
+          "title": "Tidemark",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "tidemark": [
+        { "id": "tidemark.accounts", "name": "Accounts & Quota", "icon": "media/activity.svg" }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "tidemark.accounts",
+        "contents": "No accounts saved yet.\n\nIf you are signed in to Claude Code, save that login as your first account:\n[Save Current Login](command:tidemark.captureCurrent)\n\nAlready have accounts in a sync repo?\n[Set Up Sync](command:tidemark.syncSetup)\n\n[Open the walkthrough](command:tidemark.openWalkthrough)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "tidemark.refresh", "when": "view == tidemark.accounts", "group": "navigation@1" },
+        { "command": "tidemark.addAccount", "when": "view == tidemark.accounts", "group": "navigation@2" },
+        { "command": "tidemark.syncPull", "when": "view == tidemark.accounts && tidemark.syncEnabled", "group": "navigation@3" },
+        { "command": "tidemark.doctor", "when": "view == tidemark.accounts", "group": "overflow@1" },
+        { "command": "tidemark.syncSetup", "when": "view == tidemark.accounts", "group": "overflow@2" },
+        { "command": "tidemark.showLogs", "when": "view == tidemark.accounts", "group": "overflow@3" }
+      ],
+      "view/item/context": [
+        { "command": "tidemark.renameAccount", "when": "view == tidemark.accounts && viewItem == account", "group": "inline@1" },
+        { "command": "tidemark.removeAccount", "when": "view == tidemark.accounts && viewItem == account", "group": "1_edit@1" }
+      ],
+      "commandPalette": [
+        { "command": "tidemark.openWalkthrough", "when": "false" }
+      ]
+    },
+    "configuration": {
+      "title": "Tidemark",
+      "properties": {
+        "tidemark.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the active account and remaining quota in the status bar."
+        },
+        "tidemark.statusBar.alignment": {
+          "type": "string",
+          "enum": ["left", "right"],
+          "default": "right",
+          "description": "Which side of the status bar to use. Takes effect after a window reload."
+        },
+        "tidemark.statusBar.priority": {
+          "type": "number",
+          "default": 100,
+          "description": "Higher numbers sit further from the edge. Takes effect after a window reload."
+        },
+        "tidemark.statusBar.showWeekly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include the weekly figure in the status bar as well as the 5-hour window."
+        },
+        "tidemark.statusBar.showAccountName": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include the active account's label in the status bar."
+        },
+        "tidemark.pollIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 120,
+          "description": "How often to ask Anthropic for fresh usage figures."
+        },
+        "tidemark.idlePollIntervalMinutes": {
+          "type": "number",
+          "default": 15,
+          "minimum": 1,
+          "maximum": 240,
+          "description": "How often to look up usage for accounts you are not currently using."
+        },
+        "tidemark.staleAfterMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "After this long without a successful refresh, figures are marked as stale and are not used for auto-failover decisions."
+        },
+        "tidemark.refreshPolicy": {
+          "type": "string",
+          "enum": ["auto", "none"],
+          "enumDescriptions": [
+            "Refresh the sign-in tokens of accounts you are not using, so their figures stay current. The account in use is left to Claude Code, which refreshes it itself.",
+            "Never refresh a token. Accounts you are not using will show their last known figures once their token expires."
+          ],
+          "default": "auto",
+          "markdownDescription": "Whether this machine may refresh the sign-in tokens of accounts it is not using. `auto` is needed for auto-failover to know how much each account has left. The account in use is never refreshed here — Claude Code owns that one."
+        },
+        "tidemark.estimate.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When Anthropic's usage figures are unavailable, show a rough estimate from local session logs (always marked with a ~)."
+        },
+        "tidemark.failover.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When the account in use runs out, automatically switch to the account whose weekly quota expires soonest."
+        },
+        "tidemark.failover.sessionTriggerPercent": {
+          "type": "number",
+          "default": 95,
+          "minimum": 50,
+          "maximum": 100,
+          "description": "Treat the 5-hour window as finished at this percentage used."
+        },
+        "tidemark.failover.weeklyExhaustedPercent": {
+          "type": "number",
+          "default": 95,
+          "minimum": 50,
+          "maximum": 100,
+          "description": "An account is not a candidate once its week is this percentage used."
+        },
+        "tidemark.failover.preferredWeeklyLeftPercent": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "After a 5-hour window finishes, prefer an account with at least this much of its week still left."
+        },
+        "tidemark.failover.cooldownMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "Minimum gap between two automatic switches."
+        },
+        "tidemark.restartStrategy": {
+          "type": "string",
+          "enum": ["reload", "kill", "none"],
+          "enumDescriptions": [
+            "End other Claude Code sessions on this machine and reload the window so sessions come back on the new account.",
+            "End every Claude Code session on this machine and leave reopening to you.",
+            "Swap the credentials only. Running sessions keep the old account until they end."
+          ],
+          "default": "reload",
+          "description": "What happens to running Claude Code sessions when you switch account."
+        },
+        "tidemark.restartGraceSeconds": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 60,
+          "description": "How long a session is given to exit cleanly before it is forced."
+        },
+        "tidemark.protectInvokingSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Never end the Claude Code session that asked for the switch."
+        },
+        "tidemark.sync.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep your accounts in an encrypted file in your own private git repository so every machine has them."
+        },
+        "tidemark.sync.repository": {
+          "type": "string",
+          "default": "",
+          "description": "Git remote holding the encrypted bundle, for example git@github.com:you/claude-accounts.git. Use a private repository."
+        },
+        "tidemark.sync.branch": {
+          "type": "string",
+          "default": "main",
+          "description": "Branch to read and write."
+        },
+        "tidemark.sync.autoPushOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Push after saving, renaming or removing an account."
+        },
+        "tidemark.sync.pullIntervalMinutes": {
+          "type": "number",
+          "default": 15,
+          "minimum": 0,
+          "description": "How often to pull the bundle. 0 disables automatic pulls."
+        },
+        "tidemark.sync.rememberPassphrase": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Keep the sync passphrase in your operating system's keychain instead of asking for it each time this window opens. Needed if you want auto-failover to work without you being there. Off by default — the passphrase is otherwise held in memory only."
+        },
+        "tidemark.machineName": {
+          "type": "string",
+          "default": "",
+          "description": "Name shown to your other machines. Defaults to this machine's hostname."
+        },
+        "tidemark.logLevel": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug"],
+          "default": "info",
+          "description": "Detail level in the Tidemark output channel."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "tidemark.gettingStarted",
+        "title": "Tidemark",
+        "description": "See your Claude quota, then add more accounts if you have them.",
+        "steps": [
+          {
+            "id": "status",
+            "title": "Watch your quota in the status bar",
+            "description": "Tidemark reads the login Claude Code is already using, so there is nothing to configure. The status bar shows what is left of your 5-hour window and your week, with a countdown to the next reset.\n\n[Refresh now](command:tidemark.refresh)",
+            "media": { "markdown": "media/walkthrough-status.md" },
+            "completionEvents": ["onCommand:tidemark.refresh"]
+          },
+          {
+            "id": "accounts",
+            "title": "Add a second account",
+            "description": "Save the login you are on, then let Tidemark walk you through signing in to the next one. After that, switching is one click in the status bar.\n\n[Add another account](command:tidemark.addAccount)",
+            "media": { "markdown": "media/walkthrough-accounts.md" },
+            "completionEvents": ["onCommand:tidemark.addAccount", "onCommand:tidemark.captureCurrent"]
+          },
+          {
+            "id": "sync",
+            "title": "Optional: carry your accounts between machines",
+            "description": "Your accounts can live in one passphrase-encrypted file in a private git repository of your own, so any machine you trust has all of them without signing in again.\n\n[Set up sync](command:tidemark.syncSetup)",
+            "media": { "markdown": "media/walkthrough-sync.md" },
+            "completionEvents": ["onCommand:tidemark.syncSetup"]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"out-test/test/*.test.js\"",
+    "check": "npm run typecheck && npm run test",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "package": "npm run check && npm run build && npx @vscode/vsce package --out tidemark.vsix",
+    "icon": "node scripts/make-icon.mjs",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.94.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  }
+}

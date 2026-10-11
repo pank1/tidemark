@@ -1,0 +1,17 @@
+.vscode/**
+.github/**
+node_modules/**
+out/**
+out-test/**
+src/**
+test/**
+scripts/**
+docs/epics/**
+esbuild.mjs
+tsconfig.json
+tsconfig.test.json
+**/*.map
+**/*.ts
+.gitignore
+*.vsix
+releases/**

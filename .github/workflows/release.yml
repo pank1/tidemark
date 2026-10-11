@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Also publish to the Marketplace'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check
+        run: npm run check
+
+      - name: Smoke-test the built bundle
+        run: npm run smoke
+
+      - name: Package
+        id: package
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          npx @vscode/vsce package --out "tidemark-${version}.vsix"
+          echo "vsix=tidemark-${version}.vsix" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if the tag and the manifest disagree
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "${{ steps.package.outputs.version }}" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json ${{ steps.package.outputs.version }}" >&2
+            exit 1
+          fi
+
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.vsix }}
+          generate_release_notes: true
+
+      # Publishing is deliberately conditional: a missing token skips this step
+      # with a note rather than failing a release that is otherwise fine.
+      - name: Publish to the Marketplace
+        if: env.VSCE_PAT != ''
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish --packagePath "${{ steps.package.outputs.vsix }}"
+
+      - name: Note when publishing was skipped
+        if: env.VSCE_PAT == ''
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          echo "::notice::VSCE_PAT is not set, so the Marketplace step was skipped." \
+               "The VSIX is attached to the GitHub release. See docs/PUBLISHING.md."
