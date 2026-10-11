@@ -7,6 +7,29 @@ on:
 
 jobs:
   check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the floor the extension declares; 22 is what most people have.
+        # Windows is in because the credential store and process discovery both
+        # take a different path there.
+        include:
+          - { os: ubuntu-latest, node: '20' }
+          - { os: ubuntu-latest, node: '22' }
+          - { os: windows-latest, node: '20' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +38,20 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: Start the built bundle against a stub editor
+        run: npm run smoke
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npx @vscode/vsce package --out tidemark.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tidemark-vsix
+          path: tidemark.vsix

@@ -291,7 +291,7 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test \"out-test/test/*.test.js\"",
+    "test": "tsc -p tsconfig.test.json && node scripts/run-tests.mjs",
     "check": "npm run typecheck && npm run test",
     "smoke": "npm run build && node scripts/smoke.mjs",
     "package": "npm run check && npm run build && npx @vscode/vsce package --out tidemark.vsix",
