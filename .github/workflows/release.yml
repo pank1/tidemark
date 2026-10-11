@@ -4,11 +4,6 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      publish:
-        description: 'Also publish to the Marketplace'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -16,6 +11,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Job level, not step level: a step's own `env:` is not visible to that
+    # step's `if:`, so gating on it there silently never fires.
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,23 +51,21 @@ jobs:
 
       - name: GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ steps.package.outputs.vsix }}
-          generate_release_notes: true
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes "${{ steps.package.outputs.vsix }}"
 
-      # Publishing is deliberately conditional: a missing token skips this step
-      # with a note rather than failing a release that is otherwise fine.
+      - name: Upload the VSIX as an artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tidemark-${{ steps.package.outputs.version }}-vsix
+          path: ${{ steps.package.outputs.vsix }}
+
+      # Deliberately conditional: a missing token skips publishing with a note
+      # rather than failing a release that is otherwise fine.
       - name: Publish to the Marketplace
         if: env.VSCE_PAT != ''
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx @vscode/vsce publish --packagePath "${{ steps.package.outputs.vsix }}"
 
       - name: Note when publishing was skipped
         if: env.VSCE_PAT == ''
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          echo "::notice::VSCE_PAT is not set, so the Marketplace step was skipped." \
-               "The VSIX is attached to the GitHub release. See docs/PUBLISHING.md."
+          echo "::notice::VSCE_PAT is not set, so the Marketplace step was skipped. The VSIX is on the GitHub release. See docs/PUBLISHING.md."
